@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lord Voyage – Software, Code & Digital Adventures</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https:                                
+    <!-- Load Lucide Icons (for aesthetic icons) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Load EditorJS -->
+    <script src="https:                                                           
+    <!-- Configure Tailwind for Dark Mode and Custom Colors -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',                                                       
+            theme: {
+                extend: {
+                    colors: {
+                        'noir-dark': '         
+                        'noir-light': '         
+                        'tech-blue': '         
+                        'tech-green': '         
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+                                                 
+        html {
+            scroll-behavior: smooth;
+        }
+                                                                           
+        .fedora-profile {
+            background: linear-gradient(135deg,                           
+            border-radius: 50%;
+            border: 3px solid      
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+            width: 120px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color:      
+        }
+        .dark .fedora-profile {
+            border-color:      
+            box-shadow: 0 0 15px rgba(0, 0, 0, 1);
+        }
+                                            
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color:      
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background-color:         
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-noir-dark text-gray-800 dark:text-gray-200 transition-colors duration-300 font-sans min-h-screen">
+    <!-- Firebase Imports and Setup -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https:                                                      
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https:                                                         
+        
+                                                                           
+        const appId = 'your-app-id';                                     
+        const firebaseConfig = {
+            apiKey: "your-api-key",                                      
+            authDomain: "your-auth-domain",                                          
+            projectId: "your-project-id",                                         
+            storageBucket: "your-storage-bucket",                                             
+            messagingSenderId: "your-messaging-sender-id",                                                  
+            appId: appId
+        };
+        const initialAuthToken = null;                                                 
+        
+        let app, db, auth, storage;
+        let userId = null;
+        let isLoggedIn = false;
+        const POSTS_COLLECTION_PATH = `artifacts/${appId}/public/data/posts`;
+        
+                                          
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                storage = getStorage(app);
+                setLogLevel('error');                     
+                
+                                       
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isLoggedIn = true;
+                        console.log("User authenticated:", userId);
+                        updateAuthUI(true, user.displayName || "Voyager");
+                                                                     
+                        setupPostListener();
+                    } else {
+                                                                                 
+                        userId = null;
+                        isLoggedIn = false;
+                        updateAuthUI(false);
+                                                                                           
+                        if (!initialAuthToken) {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+                
+                                               
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else if (!auth.currentUser) {
+                                                                           
+                    await signInAnonymously(auth);
+                }
+                
+                                                                     
+                document.getElementById('loading-message').classList.add('hidden');
+                document.getElementById('main-app-container').classList.remove('hidden');
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                document.getElementById('loading-message').textContent = 'Error loading app. Check console for details.';
+            }
+        }
+        
+                                      
+        window.updateAuthUI = (isAuth, name) => {
+            const authButton = document.getElementById('auth-button');
+            const addPostButton = document.getElementById('add-post-button');
+            const userDisplay = document.getElementById('user-display');
+            const postForm = document.getElementById('post-form-modal');
+            
+            if (isAuth) {
+                authButton.textContent = 'Logout';
+                authButton.onclick = handleLogout;
+                authButton.classList.remove('bg-tech-blue');
+                authButton.classList.add('bg-red-600');
+                addPostButton.classList.remove('hidden');
+                userDisplay.textContent = `User: ${name || userId}`;
+                userDisplay.classList.remove('hidden');
+            } else {
+                authButton.textContent = 'Login';
+                authButton.onclick = handleLogin;
+                authButton.classList.remove('bg-red-600');
+                authButton.classList.add('bg-tech-blue');
+                addPostButton.classList.add('hidden');
+                userDisplay.classList.add('hidden');
+                postForm.classList.add('hidden');                                
+            }
+        };
+        
+                                                                                       
+                                                                                                                     
+                                                
+        window.handleLogin = async () => {
+                                                            
+                                                         
+                                                     
+                                                                                         
+            if (!auth.currentUser) {
+                await signInAnonymously(auth);
+            }
+        };
+        
+        window.handleLogout = async () => {
+            await signOut(auth);
+        };
+        
+                                
+        function setupPostListener() {
+            const postsContainer = document.getElementById('posts-container');
+            const q = query(collection(db, POSTS_COLLECTION_PATH), orderBy('timestamp', 'desc'));
+            onSnapshot(q, (snapshot) => {
+                postsContainer.innerHTML = '';
+                if (snapshot.empty) {
+                    postsContainer.innerHTML = `<p class="text-center py-8 text-gray-500 dark:text-gray-400">No posts yet. ${isLoggedIn ? 'Click "New Post" to start!' : 'Login to create the first post.'}</p>`;
+                    return;
+                }
+                snapshot.docs.forEach(doc => {
+                    const post = doc.data();
+                    const postHtml = createPostCard(doc.id, post);
+                    postsContainer.insertAdjacentHTML('beforeend', postHtml);
+                });
+            }, (error) => {
+                console.error("Error listening to posts:", error);
+                postsContainer.innerHTML = `<p class="text-center py-8 text-red-500">Error loading posts. Check console.</p>`;
+            });
+        }
+        
+        function createPostCard(id, post) {
+            const date = post.timestamp ? new Date(post.timestamp.seconds * 1000).toLocaleDateString() : 'N/A';
+            const isOwner = post.authorId === userId;
+            return `
+                <article id="post-${
